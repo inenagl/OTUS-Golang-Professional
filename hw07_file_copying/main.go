@@ -2,12 +2,20 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
 )
 
 var (
 	from, to      string
 	limit, offset int64
 )
+
+func printError(e error) {
+	if _, err := fmt.Fprintln(os.Stderr, e.Error()); err != nil {
+		panic(err.Error())
+	}
+}
 
 func init() {
 	flag.StringVar(&from, "from", "", "file to read from")
@@ -18,5 +26,8 @@ func init() {
 
 func main() {
 	flag.Parse()
-	// Place your code here.
+	err := Copy(from, to, offset, limit)
+	if err != nil {
+		printError(err)
+	}
 }
