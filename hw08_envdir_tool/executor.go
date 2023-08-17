@@ -46,7 +46,7 @@ func RunCmd(cmd []string, env Environment) (returnCode int) {
 		return exitCode
 	}
 
-	if err := command.Wait(); err != nil {
+	if err = command.Wait(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
