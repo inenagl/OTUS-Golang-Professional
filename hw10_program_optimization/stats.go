@@ -1,66 +1,64 @@
 package hw10programoptimization
 
 import (
-	"encoding/json"
+	"bufio"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
-)
 
-type User struct {
-	ID       int
-	Name     string
-	Username string
-	Email    string
-	Phone    string
-	Password string
-	Address  string
-}
+	"github.com/tidwall/gjson"
+)
 
 type DomainStat map[string]int
 
 func GetDomainStat(r io.Reader, domain string) (DomainStat, error) {
-	u, err := getUsers(r)
+	ds, err := countDomains(r, domain)
 	if err != nil {
-		return nil, fmt.Errorf("get users error: %w", err)
+		return nil, fmt.Errorf("error: %w", err)
 	}
-	return countDomains(u, domain)
+
+	return ds, nil
 }
 
-type users [100_000]User
-
-func getUsers(r io.Reader) (result users, err error) {
-	content, err := io.ReadAll(r)
-	if err != nil {
-		return
-	}
-
-	lines := strings.Split(string(content), "\n")
-	for i, line := range lines {
-		var user User
-		if err = json.Unmarshal([]byte(line), &user); err != nil {
-			return
-		}
-		result[i] = user
-	}
-	return
-}
-
-func countDomains(u users, domain string) (DomainStat, error) {
+func countDomains(r io.Reader, domain string) (DomainStat, error) {
 	result := make(DomainStat)
 
-	for _, user := range u {
-		matched, err := regexp.Match("\\."+domain, []byte(user.Email))
-		if err != nil {
-			return nil, err
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if !gjson.Valid(line) {
+			return nil, fmt.Errorf("invalid json: '%s'", line)
+		}
+		email := gjson.Get(line, "Email")
+		if !email.Exists() {
+			continue
 		}
 
-		if matched {
-			num := result[strings.ToLower(strings.SplitN(user.Email, "@", 2)[1])]
-			num++
-			result[strings.ToLower(strings.SplitN(user.Email, "@", 2)[1])] = num
+		fullDomain, ok := extractDomain(email.String(), domain)
+		if ok {
+			result[fullDomain]++
 		}
 	}
+
+	err := scanner.Err()
+	if err != nil {
+		return nil, err
+	}
+
 	return result, nil
+}
+
+func extractDomain(email string, domain string) (fullDomain string, ok bool) {
+	_, fullDomain, found := strings.Cut(email, "@")
+	if !found {
+		return "", false
+	}
+
+	domainParts := strings.Split(fullDomain, ".")
+	if len(domainParts) < 2 || domain != domainParts[len(domainParts)-1] {
+		return "", false
+	}
+
+	return strings.ToLower(fullDomain), true
 }
