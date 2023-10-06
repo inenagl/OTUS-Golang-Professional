@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/storage"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +21,12 @@ type Server struct {
 	server *http.Server
 }
 
-type Application interface { // TODO
+type Application interface {
+	GetEvent(id uuid.UUID, userID uuid.UUID) (storage.Event, error)
+	UpdateEvent(id uuid.UUID, userID uuid.UUID, event storage.Event) (storage.Event, error)
+	CreateEvent(userID uuid.UUID, event storage.Event) (storage.Event, error)
+	DeleteEvent(id uuid.UUID, userID uuid.UUID) error
+	GetEventsForPeriod(userID uuid.UUID, start, end time.Time) ([]storage.Event, error)
 }
 
 func NewServer(host string, port int, logger zap.Logger, app Application) *Server {
@@ -57,7 +64,19 @@ func (s *Server) router() *mux.Router {
 	rtr := mux.NewRouter()
 	rtr.Use(s.loggingMiddleware)
 
+	// Оставлю как открытую часть API
 	rtr.HandleFunc("/hello", s.hello)
+
+	// Делаем саброутер для закрытой части апи (требующей передачи id юзера в заголовке)
+	restricted := rtr.NewRoute().Subrouter()
+	restricted.Use(s.userMiddleware)
+	restricted.HandleFunc("/event/{eventId}", s.getEvent).Methods("GET")
+	restricted.HandleFunc("/event/{eventId}", s.updateEvent).Methods("POST")
+	restricted.HandleFunc("/event/{eventId}", s.deleteEvent).Methods("DELETE")
+	restricted.HandleFunc("/event", s.createEvent).Methods("POST")
+	restricted.HandleFunc("/events/day/{date}", s.getForDay).Methods("GET")
+	restricted.HandleFunc("/events/week/{date}", s.getForWeek).Methods("GET")
+	restricted.HandleFunc("/events/month/{date}", s.getForMonth).Methods("GET")
 
 	return rtr
 }

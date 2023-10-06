@@ -28,7 +28,6 @@ type Storage struct {
 	dsn     string
 	db      *sqlx.DB
 	timeout time.Duration
-	context context.Context
 }
 
 func New(host string, port int, dbname, user, password, sslmode string, timeout time.Duration) *Storage {
@@ -80,26 +79,31 @@ func (s *Storage) Close() error {
 	return nil
 }
 
-func (s *Storage) AddEvent(event storage.Event) (uuid.UUID, error) {
+func (s *Storage) AddEvent(event storage.Event) (storage.Event, error) {
 	if err := s.Ping(); err != nil {
-		return uuid.UUID{}, err
+		return storage.Event{}, err
 	}
 
 	query, args, err := sqlx.Named(`INSERT INTO Events 
     	(title, description, start_date, end_date, user_id, notify_before)
         VALUES (:title, :description, :start_date, :end_date, :user_id, :notify_before) RETURNING id`, event)
 	if err != nil {
-		return uuid.UUID{}, err
+		return storage.Event{}, err
 	}
 	query = s.db.Rebind(query)
 
 	var id uuid.UUID
 	err = s.db.GetContext(s.createTimeoutCtx(), &id, query, args...)
 	if err != nil {
-		return uuid.UUID{}, err
+		return storage.Event{}, err
 	}
 
-	return id, nil
+	res, err := s.GetEvent(id)
+	if err != nil {
+		return storage.Event{}, err
+	}
+
+	return res, nil
 }
 
 func (s *Storage) UpdateEvent(event storage.Event) error {

@@ -47,19 +47,21 @@ func TestAddEvent(t *testing.T) {
 	s := New()
 	require.Equal(t, 0, len(s.data))
 
-	id, err := s.AddEvent(event)
+	res, err := s.AddEvent(event)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(s.data))
-	event.ID = id
-	require.Equal(t, event, s.data[id])
+	event.ID = res.ID
+	require.Equal(t, event, s.data[res.ID])
+	require.Equal(t, event, res)
 
 	// Повторное добавление такого же ивента приводит к дублированию данных с под новым ID
-	id, err = s.AddEvent(event)
+	res, err = s.AddEvent(event)
 	require.NoError(t, err)
 	require.Equal(t, 2, len(s.data))
 	event2 := event
-	event2.ID = id
-	require.Equal(t, event2, s.data[id])
+	event2.ID = res.ID
+	require.Equal(t, event2, s.data[res.ID])
+	require.Equal(t, event2, res)
 }
 
 func TestUpdateEvent(t *testing.T) {

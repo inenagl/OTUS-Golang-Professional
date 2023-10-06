@@ -20,7 +20,7 @@ func New() *Storage {
 	return &Storage{data: make(map[uuid.UUID]storage.Event)}
 }
 
-func (s *Storage) AddEvent(event storage.Event) (uuid.UUID, error) {
+func (s *Storage) AddEvent(event storage.Event) (storage.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for {
@@ -32,7 +32,7 @@ func (s *Storage) AddEvent(event storage.Event) (uuid.UUID, error) {
 	}
 
 	s.data[event.ID] = event
-	return event.ID, nil
+	return event, nil
 }
 
 func (s *Storage) UpdateEvent(event storage.Event) error {
