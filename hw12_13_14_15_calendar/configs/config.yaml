@@ -8,14 +8,15 @@ logger:
     - "stdout"
 
 storage:
-  type: "memory"          # "memory"|"sql"
-  dbname: "calendar"      # need be set in env if type = "sql"
-  dbhost: "localhost"     # need be set in env if type = "sql"
-  dbport: 5432            # need be set in env if type = "sql"
-  dbsslmode: "disable"
-  dbuser: "cuser"         # need be set in env if type = "sql"
-  dbpassword: "cpassword" # need be set in env if type = "sql"
-  dbtimeout: "5s"
+  type: "sql"          # "memory"|"sql"
+
+dbname: "calendar"      # need be set in env if type = "sql"
+dbhost: "localhost"     # need be set in env if type = "sql"
+dbport: 5432            # need be set in env if type = "sql"
+dbsslmode: "disable"
+dbuser: "cuser"         # need be set in env if type = "sql"
+dbpassword: "cpassword" # need be set in env if type = "sql"
+dbtimeout: "10s"
 
 server:
   host: "localhost"
