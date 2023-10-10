@@ -32,7 +32,7 @@ install-lint-deps:
 	(which golangci-lint > /dev/null) || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v1.52.2
 
 lint: install-lint-deps
-	golangci-lint run ./...
+	golangci-lint run --timeout 2m0s ./...
 
 install-goose:
 	go install github.com/pressly/goose/v3/cmd/goose@latest

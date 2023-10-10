@@ -141,6 +141,7 @@ func (s *Service) getForPeriod(ctx context.Context, r *StartDateRequest, period 
 	}
 
 	start := r.GetStart().AsTime()
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
 
 	var end time.Time
 	switch period {
@@ -184,7 +185,12 @@ func (s *Service) getUserFromMeta(ctx context.Context) (uuid.UUID, error) {
 	}
 	uid, err := uuid.Parse(md.Get(UUIDHeader)[0])
 	if err != nil {
-		return uuid.UUID{}, status.Errorf(codes.Unauthenticated, `"%s" is not valid UUID: %s`, md.Get(UUIDHeader)[0], err)
+		return uuid.UUID{}, status.Errorf(
+			codes.Unauthenticated,
+			`"%s" is not valid UUID: %s`,
+			md.Get(UUIDHeader)[0],
+			err,
+		)
 	}
 
 	return uid, nil
