@@ -18,6 +18,10 @@ dbuser: "cuser"         # need be set in env if type = "sql"
 dbpassword: "cpassword" # need be set in env if type = "sql"
 dbtimeout: "10s"
 
-server:
+http-server:
   host: "localhost"
   port: 8081
+
+grpc-server:
+  host: "localhost"
+  port: 8082

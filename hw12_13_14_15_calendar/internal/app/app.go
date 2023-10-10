@@ -10,6 +10,14 @@ import (
 	"go.uber.org/zap"
 )
 
+type Application interface {
+	GetEvent(id uuid.UUID, userID uuid.UUID) (storage.Event, error)
+	UpdateEvent(id uuid.UUID, userID uuid.UUID, event storage.Event) (storage.Event, error)
+	CreateEvent(userID uuid.UUID, event storage.Event) (storage.Event, error)
+	DeleteEvent(id uuid.UUID, userID uuid.UUID) error
+	GetEventsForPeriod(userID uuid.UUID, start, end time.Time) ([]storage.Event, error)
+}
+
 type App struct {
 	logger  zap.Logger
 	storage Storage

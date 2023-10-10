@@ -7,9 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/storage"
+	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/app"
 	"go.uber.org/zap"
 )
 
@@ -17,19 +16,11 @@ type Server struct {
 	host   string
 	port   int
 	logger zap.Logger
-	app    Application
+	app    app.Application
 	server *http.Server
 }
 
-type Application interface {
-	GetEvent(id uuid.UUID, userID uuid.UUID) (storage.Event, error)
-	UpdateEvent(id uuid.UUID, userID uuid.UUID, event storage.Event) (storage.Event, error)
-	CreateEvent(userID uuid.UUID, event storage.Event) (storage.Event, error)
-	DeleteEvent(id uuid.UUID, userID uuid.UUID) error
-	GetEventsForPeriod(userID uuid.UUID, start, end time.Time) ([]storage.Event, error)
-}
-
-func NewServer(host string, port int, logger zap.Logger, app Application) *Server {
+func NewServer(host string, port int, logger zap.Logger, app app.Application) *Server {
 	return &Server{
 		host:   host,
 		port:   port,
@@ -51,12 +42,14 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.server = server
 
+	s.logger.Debug(fmt.Sprintf("starting http server on %s", server.Addr))
 	server.ListenAndServe()
 
 	return nil
 }
 
 func (s *Server) Stop(ctx context.Context) error {
+	s.logger.Debug("HTTP shutdown")
 	return s.server.Shutdown(ctx)
 }
 

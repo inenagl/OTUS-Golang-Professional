@@ -40,4 +40,7 @@ install-goose:
 migrate: install-goose
 	goose -dir $(MIGRATIONS_DIR) postgres $(DB_STRING) up
 
-.PHONY: build run build-img run-img version test lint migrate
+generate:
+	protoc --proto_path=./api/ --go_out=./internal/server/grpc --go-grpc_out=./internal/server/grpc calendar_service.proto
+
+.PHONY: build run build-img run-img version test lint migrate generate
