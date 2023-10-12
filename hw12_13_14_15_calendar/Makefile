@@ -1,4 +1,5 @@
 BIN := "./bin/calendar"
+BIN_SCHEDULER := "./bin/calendar_scheduler"
 DOCKER_IMG="calendar:develop"
 
 GIT_HASH := $(shell git log --format="%h" -n 1)
@@ -9,9 +10,13 @@ MIGRATIONS_DIR := migrations
 
 build:
 	go build -v -o $(BIN) -ldflags "$(LDFLAGS)" ./cmd/calendar
+	go build -v -o $(BIN_SCHEDULER) -ldflags "$(LDFLAGS)" ./cmd/calendar_scheduler
 
 run: build
 	$(BIN) -config ./configs/config.yaml
+
+run_scheduler: build
+	$(BIN_SCHEDULER) -config ./configs/config_scheduler.yaml
 
 build-img:
 	docker build \

@@ -23,6 +23,7 @@ const (
 	EventDescription  EventField = "Description"
 	EventUserID       EventField = "UserID"
 	EventNotifyBefore EventField = "NotifyBefore"
+	EventNotifiedAt   EventField = "NotifiedAt"
 )
 
 type ConditionType string
@@ -64,6 +65,7 @@ type Event struct {
 	Description  string        `db:"description"`
 	UserID       uuid.UUID     `db:"user_id"`
 	NotifyBefore time.Duration `db:"notify_before"`
+	NotifiedAt   time.Time     `db:"notified_at"`
 }
 
 func (e Event) GetFieldValue(field EventField) interface{} {
@@ -82,6 +84,8 @@ func (e Event) GetFieldValue(field EventField) interface{} {
 		return e.UserID
 	case EventNotifyBefore:
 		return e.NotifyBefore
+	case EventNotifiedAt:
+		return e.NotifiedAt
 	}
 
 	return nil
