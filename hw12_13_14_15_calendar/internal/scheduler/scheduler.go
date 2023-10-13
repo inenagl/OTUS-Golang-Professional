@@ -10,14 +10,24 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/json"
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/queue"
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/storage"
 	"go.uber.org/zap"
 )
 
+var marshalledFields = []json.EventField{
+	json.EventID,
+	json.EventTitle,
+	json.EventStartDate,
+	json.EventEndDate,
+	json.EventDescription,
+	json.EventNotifyBefore,
+}
+
 type Scheduler interface {
 	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
+	Stop() error
 }
 
 type S struct {
@@ -133,7 +143,7 @@ func (s *S) notify() error {
 
 	errs := make([]string, 0)
 	for _, event := range events {
-		err = s.producer.Publish(marshallEvent(event))
+		err = s.producer.Publish(json.MarshallEvent(event, marshalledFields))
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("event %s: %s", event.ID.String(), err.Error()))
 			continue
@@ -159,16 +169,4 @@ func (s *S) deleteOldEvents() error {
 	}
 
 	return s.storage.DeleteEvents(filter)
-}
-
-func marshallEvent(event storage.Event) string {
-	return fmt.Sprintf(
-		`{"%s":"%s","%s":"%s","%s":"%s","%s":"%s","%s":"%s","%s":"%s"}`,
-		storage.EventID, event.ID.String(),
-		storage.EventTitle, event.Title,
-		storage.EventStartDate, event.StartDate.Format(time.DateTime),
-		storage.EventEndDate, event.EndDate.Format(time.DateTime),
-		storage.EventDescription, event.Description,
-		storage.EventNotifyBefore, event.NotifyBefore.String(),
-	)
 }
