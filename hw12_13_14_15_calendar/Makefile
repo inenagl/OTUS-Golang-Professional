@@ -1,5 +1,6 @@
 BIN := "./bin/calendar"
 BIN_SCHEDULER := "./bin/calendar_scheduler"
+BIN_SENDER := "./bin/calendar_sender"
 DOCKER_IMG="calendar:develop"
 
 GIT_HASH := $(shell git log --format="%h" -n 1)
@@ -8,15 +9,25 @@ LDFLAGS := -X main.release="develop" -X main.buildDate=$(shell date -u +%Y-%m-%d
 DB_STRING := "user=cuser password=cpassword dbname=calendar host=localhost port=5432"
 MIGRATIONS_DIR := migrations
 
-build:
+build_calendar:
 	go build -v -o $(BIN) -ldflags "$(LDFLAGS)" ./cmd/calendar
+
+build_scheduler:
 	go build -v -o $(BIN_SCHEDULER) -ldflags "$(LDFLAGS)" ./cmd/calendar_scheduler
+
+build_sender:
+	go build -v -o $(BIN_SENDER) -ldflags "$(LDFLAGS)" ./cmd/calendar_sender
+
+build: build_calendar build_scheduler build_sender
 
 run: build
 	$(BIN) -config ./configs/config.yaml
 
-run_scheduler: build
+run_scheduler: build_scheduler
 	$(BIN_SCHEDULER) -config ./configs/config_scheduler.yaml
+
+run_sender: build_sender
+	$(BIN_SENDER) -config ./configs/config_sender.yaml
 
 build-img:
 	docker build \
@@ -48,4 +59,20 @@ migrate: install-goose
 generate:
 	protoc --proto_path=./api/ --go_out=./internal/server/grpc --go-grpc_out=./internal/server/grpc calendar_service.proto
 
-.PHONY: build run build-img run-img version test lint migrate generate
+start-rabbit:
+	docker run -d \
+		--name rb \
+		-p 15672:15672 \
+		-p 5672:5672 \
+		rabbitmq:3-management
+
+start-postgres:
+	docker run -d \
+		--name pg \
+		-e POSTGRES_PASSWORD=postgres \
+		-e PGDATA=/var/lib/postgresql/data/pgdata \
+		-v pg_data:/var/lib/postgresql/data \
+		-p 5432:5432 \
+		postgres
+
+.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate start-rabbit start-postgres

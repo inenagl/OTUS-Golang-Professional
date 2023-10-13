@@ -92,14 +92,14 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		os.Exit(2)
 	}
-	tm := time.NewTimer(3 * time.Second)
+	tm := time.NewTimer(10 * time.Second)
 	for res, err := testClient.Do(req); err != nil; {
 		res.Body.Close()
 		select {
 		case <-tm.C:
 			break
 		default:
-			time.Sleep(time.Millisecond)
+			time.Sleep(time.Second)
 		}
 	}
 	if err != nil {
