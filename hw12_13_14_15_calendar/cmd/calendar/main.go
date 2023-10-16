@@ -7,11 +7,13 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/app"
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/logger"
+	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/server/grpc"
 	internalhttp "github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/server/http"
 	memorystorage "github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/storage/memory"
 	sqlstorage "github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/storage/sql"
@@ -66,7 +68,8 @@ func main() {
 
 	calendar := app.New(*logg, storage)
 
-	server := internalhttp.NewServer(config.Server.Host, config.Server.Port, *logg, calendar)
+	httpServer := internalhttp.NewServer(config.HTTPServer.Host, config.HTTPServer.Port, *logg, calendar)
+	grpcServer := grpc.NewServer(config.GRPCServer.Host, config.GRPCServer.Port, *logg, calendar)
 
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
@@ -78,17 +81,39 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 		defer cancel()
 
-		if err := server.Stop(ctx); err != nil {
-			logg.Error("failed to stop http server: " + err.Error())
+		if err := httpServer.Stop(ctx); err != nil {
+			logg.Error("failed to stop HTTP server: " + err.Error())
 		}
 	}()
 
-	logg.Info("calendar is running...")
+	go func() {
+		<-ctx.Done()
 
-	if err := server.Start(ctx); err != nil {
-		logg.Error("failed to start http server: " + err.Error())
-		cancel()
-		logg.Sync()
-		os.Exit(1)
-	}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+		defer cancel()
+
+		if err := grpcServer.Stop(ctx); err != nil {
+			logg.Error("failed to stop GRPC server: " + err.Error())
+		}
+	}()
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		if err := httpServer.Start(ctx); err != nil {
+			logg.Error("failed to start HTTP server: " + err.Error())
+			cancel()
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if err := grpcServer.Start(ctx); err != nil {
+			logg.Error("failed to start GRPC server: " + err.Error())
+			cancel()
+		}
+	}()
+
+	wg.Wait()
 }

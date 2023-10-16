@@ -20,9 +20,10 @@ const (
 // Организация конфига в main принуждает нас сужать API компонентов, использовать
 // при их конструировании только необходимые параметры, а также уменьшает вероятность циклической зависимости.
 type Config struct {
-	Logger  LoggerConf
-	Storage StorageConf
-	Server  ServerConf
+	Logger     LoggerConf
+	Storage    StorageConf
+	HTTPServer ServerConf
+	GRPCServer ServerConf
 }
 
 type LoggerConf struct {
@@ -76,7 +77,8 @@ func NewConfig(filePath string) (Config, error) {
 		return config, err
 	}
 
-	config.Server = processServerConf()
+	config.HTTPServer = processHTTPServerConf()
+	config.GRPCServer = processGRPCServerConf()
 
 	return config, nil
 }
@@ -160,13 +162,24 @@ func processStorageConf() (StorageConf, error) {
 	return conf, nil
 }
 
-func processServerConf() ServerConf {
+func processHTTPServerConf() ServerConf {
 	viper.SetDefault("host", "localhost")
 	viper.SetDefault("port", 8080)
 
 	conf := ServerConf{}
-	conf.Host = viper.GetString("server.host")
-	conf.Port = viper.GetInt("server.port")
+	conf.Host = viper.GetString("http-server.host")
+	conf.Port = viper.GetInt("http-server.port")
+
+	return conf
+}
+
+func processGRPCServerConf() ServerConf {
+	viper.SetDefault("host", "localhost")
+	viper.SetDefault("port", 8080)
+
+	conf := ServerConf{}
+	conf.Host = viper.GetString("grpc-server.host")
+	conf.Port = viper.GetInt("grpc-server.port")
 
 	return conf
 }

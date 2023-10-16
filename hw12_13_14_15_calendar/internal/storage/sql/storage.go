@@ -2,6 +2,8 @@ package sqlstorage
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -26,7 +28,6 @@ type Storage struct {
 	dsn     string
 	db      *sqlx.DB
 	timeout time.Duration
-	context context.Context
 }
 
 func New(host string, port int, dbname, user, password, sslmode string, timeout time.Duration) *Storage {
@@ -42,26 +43,27 @@ func New(host string, port int, dbname, user, password, sslmode string, timeout 
 	}
 }
 
+func (s Storage) createTimeoutCtx() context.Context {
+	ctx, _ := context.WithTimeout(context.Background(), s.timeout) //nolint: govet
+	return ctx
+}
+
 func (s *Storage) Connect(ctx context.Context) error {
-	db, err := sqlx.Open("pgx", s.dsn)
+	db, err := sqlx.ConnectContext(ctx, "pgx", s.dsn)
 	if err != nil {
-		return fmt.Errorf("failed to load driver: %w", err)
+		return fmt.Errorf("failed to connect to db: %w", err)
 	}
 	s.db = db
-	s.context = ctx
 
-	return s.Ping()
+	return nil
 }
 
 func (s *Storage) Ping() error {
 	if s.db == nil {
-		ctx, _ := context.WithTimeout(context.Background(), s.timeout) //nolint: govet
-		if err := s.Connect(ctx); err != nil {
-			return err
-		}
+		return s.Connect(s.createTimeoutCtx())
 	}
 
-	if err := s.db.PingContext(s.context); err != nil {
+	if err := s.db.PingContext(s.createTimeoutCtx()); err != nil {
 		return fmt.Errorf("failed to connect to db: %w", err)
 	}
 
@@ -77,26 +79,31 @@ func (s *Storage) Close() error {
 	return nil
 }
 
-func (s *Storage) AddEvent(event storage.Event) (uuid.UUID, error) {
+func (s *Storage) AddEvent(event storage.Event) (storage.Event, error) {
 	if err := s.Ping(); err != nil {
-		return uuid.UUID{}, err
+		return storage.Event{}, err
 	}
 
 	query, args, err := sqlx.Named(`INSERT INTO Events 
     	(title, description, start_date, end_date, user_id, notify_before)
         VALUES (:title, :description, :start_date, :end_date, :user_id, :notify_before) RETURNING id`, event)
 	if err != nil {
-		return uuid.UUID{}, err
+		return storage.Event{}, err
 	}
 	query = s.db.Rebind(query)
 
 	var id uuid.UUID
-	err = s.db.GetContext(s.context, &id, query, args...)
+	err = s.db.GetContext(s.createTimeoutCtx(), &id, query, args...)
 	if err != nil {
-		return uuid.UUID{}, err
+		return storage.Event{}, err
 	}
 
-	return id, nil
+	res, err := s.GetEvent(id)
+	if err != nil {
+		return storage.Event{}, err
+	}
+
+	return res, nil
 }
 
 func (s *Storage) UpdateEvent(event storage.Event) error {
@@ -104,7 +111,7 @@ func (s *Storage) UpdateEvent(event storage.Event) error {
 		return err
 	}
 
-	_, err := s.db.NamedExecContext(s.context,
+	_, err := s.db.NamedExecContext(s.createTimeoutCtx(),
 		`UPDATE Events SET
                   title = :title,
                   description = :description,
@@ -126,7 +133,7 @@ func (s *Storage) DeleteEvent(id uuid.UUID) error {
 		return err
 	}
 
-	_, err := s.db.ExecContext(s.context, "DELETE FROM Events WHERE id = $1", id)
+	_, err := s.db.ExecContext(s.createTimeoutCtx(), "DELETE FROM Events WHERE id = $1", id)
 	if err != nil {
 		return err
 	}
@@ -140,9 +147,12 @@ func (s *Storage) GetEvent(id uuid.UUID) (storage.Event, error) {
 	}
 
 	event := storage.Event{}
-	err := s.db.GetContext(s.context, &event,
+	err := s.db.GetContext(s.createTimeoutCtx(), &event,
 		"SELECT id, title, description, start_date, end_date, user_id, notify_before  FROM Events WHERE id = $1", id)
 	if err != nil {
+		if errors.Is(sql.ErrNoRows, err) {
+			err = storage.ErrEventNotFound
+		}
 		return storage.Event{}, err
 	}
 
@@ -171,7 +181,7 @@ func (s *Storage) GetEvents(filter []storage.EventCondition, sort []storage.Even
 	}
 
 	var events []storage.Event
-	err := s.db.SelectContext(s.context, &events, qb.String(), args...)
+	err := s.db.SelectContext(s.createTimeoutCtx(), &events, qb.String(), args...)
 	if err != nil {
 		return nil, err
 	}
