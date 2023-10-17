@@ -1,1 +1,67 @@
 version: "3"
+
+services:
+  db:
+    image: "postgres"
+    environment:
+      - "POSTGRES_PASSWORD=postgres"
+      - "PGDATA=/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+
+  rabbit:
+    image: "rabbitmq:3-management"
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+
+  calendar:
+    build:
+      context: ../
+      dockerfile: build/package/calendar/Dockerfile
+    ports:
+      - "8888:8081"
+      - "8889:8082"
+    env_file:
+      - dbvars.env
+    restart: on-failure
+    depends_on:
+      - db
+
+  scheduler:
+    build:
+      context: ../
+      dockerfile: build/package/scheduler/Dockerfile
+    env_file:
+      - dbvars.env
+      - amqpvars.env
+    depends_on:
+      - db
+      - rabbit
+    command:
+      - "sh"
+      - "-c"
+      - "rm %2F; \
+         until wget http://guest:guest@rabbit:15672/api/aliveness-test/%2F; do echo waiting for rabbitmq; sleep 2; done; \
+         /opt/calendar/calendar-scheduler --config /etc/calendar/config.yaml"
+
+  sender:
+    build:
+      context: ../
+      dockerfile: build/package/sender/Dockerfile
+    env_file:
+      - amqpvars.env
+    depends_on:
+      - rabbit
+    command:
+      - sh
+      - -c
+      - |
+        rm %2F
+        until wget http://guest:guest@rabbit:15672/api/aliveness-test/%2F
+        do echo waiting for rabbitmq
+        sleep 2
+        done
+        /opt/calendar/calendar-sender --config /etc/calendar/config.yaml

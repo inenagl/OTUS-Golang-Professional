@@ -19,9 +19,9 @@ dbpassword: "cpassword" # need be set in env if type = "sql"
 dbtimeout: "10s"
 
 http-server:
-  host: "localhost"
+  host: ""
   port: 8081
 
 grpc-server:
-  host: "localhost"
+  host: ""
   port: 8082

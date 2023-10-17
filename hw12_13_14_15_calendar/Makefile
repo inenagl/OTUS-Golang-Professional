@@ -2,6 +2,8 @@ BIN := "./bin/calendar"
 BIN_SCHEDULER := "./bin/calendar_scheduler"
 BIN_SENDER := "./bin/calendar_sender"
 DOCKER_IMG="calendar:develop"
+DOCKER_SCHEDULER_IMG="scheduler:develop"
+DOCKER_SENDER_IMG="sender:develop"
 
 GIT_HASH := $(shell git log --format="%h" -n 1)
 LDFLAGS := -X main.release="develop" -X main.buildDate=$(shell date -u +%Y-%m-%dT%H:%M:%S) -X main.gitHash=$(GIT_HASH)
@@ -33,7 +35,15 @@ build-img:
 	docker build \
 		--build-arg=LDFLAGS="$(LDFLAGS)" \
 		-t $(DOCKER_IMG) \
-		-f build/Dockerfile .
+		-f build/package/calendar/Dockerfile .
+	docker build \
+		--build-arg=LDFLAGS="$(LDFLAGS)" \
+		-t $(DOCKER_SCHEDULER_IMG) \
+		-f build/package/scheduler/Dockerfile .
+	docker build \
+		--build-arg=LDFLAGS="$(LDFLAGS)" \
+		-t $(DOCKER_SENDER_IMG) \
+		-f build/package/sender/Dockerfile .
 
 run-img: build-img
 	docker run $(DOCKER_IMG)
@@ -75,4 +85,13 @@ start-postgres:
 		-p 5432:5432 \
 		postgres
 
-.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate start-rabbit start-postgres
+up:
+	docker compose -f deployments/docker-compose.yaml up -d
+
+up-build:
+	docker compose -f deployments/docker-compose.yaml up -d --build
+
+down:
+	docker compose -f deployments/docker-compose.yaml down
+
+.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate start-rabbit start-postgres up up-build down
