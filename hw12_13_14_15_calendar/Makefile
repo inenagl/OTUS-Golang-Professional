@@ -9,6 +9,9 @@ LDFLAGS := -X main.release="develop" -X main.buildDate=$(shell date -u +%Y-%m-%d
 DB_STRING := "user=cuser password=cpassword dbname=calendar host=localhost port=5432"
 MIGRATIONS_DIR := migrations
 
+RABBIT_NAME := "calendar_db"
+POSTGRES_NAME := "calendar_mq"
+
 build_calendar:
 	go build -v -o $(BIN) -ldflags "$(LDFLAGS)" ./cmd/calendar
 
@@ -20,7 +23,7 @@ build_sender:
 
 build: build_calendar build_scheduler build_sender
 
-run: build
+run: build_calendar
 	$(BIN) -config ./configs/config.yaml
 
 run_scheduler: build_scheduler
@@ -59,20 +62,34 @@ migrate: install-goose
 generate:
 	protoc --proto_path=./api/ --go_out=./internal/server/grpc --go-grpc_out=./internal/server/grpc calendar_service.proto
 
-start-rabbit:
+run_mq:
 	docker run -d \
-		--name rb \
+		--name $(RABBIT_NAME) \
 		-p 15672:15672 \
 		-p 5672:5672 \
 		rabbitmq:3-management
 
-start-postgres:
+stop_mq:
+	docker stop $(RABBIT_NAME)
+	docker rm $(RABBIT_NAME)
+
+run_db:
 	docker run -d \
-		--name pg \
+		--name $(POSTGRES_NAME) \
 		-e POSTGRES_PASSWORD=postgres \
 		-e PGDATA=/var/lib/postgresql/data/pgdata \
 		-v pg_data:/var/lib/postgresql/data \
 		-p 5432:5432 \
 		postgres
+	docker exec -it $(POSTGRES_NAME) psql -Upostgres -dpostgres \
+    	-c "CREATE DATABASE calendar;" \
+    	-c "CREATE USER cuser WITH ENCRYPTED PASSWORD 'cpassword';" \
+    	-c "GRANT ALL ON DATABASE calendar TO cuser;" \
+    	-c "ALTER DATABASE calendar OWNER TO cuser;" \
+    	-c "GRANT USAGE, CREATE ON SCHEMA PUBLIC TO cuser;"
 
-.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate start-rabbit start-postgres
+stop_db:
+	docker stop $(POSTGRES_NAME)
+	docker rm $(POSTGRES_NAME)
+
+.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate run_mq stop_mq run_db stop_db
