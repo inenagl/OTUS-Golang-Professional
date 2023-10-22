@@ -124,7 +124,7 @@ func (s *Storage) UpdateEvent(event storage.Event) error {
                   end_date = :end_date,
                   user_id = :user_id,
                   notify_before = :notify_before,
-                  notified_at = :notified_at,
+                  notified_at = :notified_at
             WHERE id=:id`,
 		event,
 	)
@@ -172,24 +172,29 @@ FROM Events WHERE id = $1`,
 	return event, nil
 }
 
-func (s *Storage) DeleteEvents(filter []storage.EventCondition) error {
+func (s *Storage) DeleteEvents(filter []storage.EventCondition) (int64, error) {
 	if len(filter) == 0 {
-		return errors.New("delete: filter required")
+		return 0, errors.New("delete: filter required")
 	}
 	if err := s.Ping(); err != nil {
-		return err
+		return 0, err
 	}
 
 	args := make([]interface{}, 0, len(filter))
 	where, args := getWhere(filter, args, 1)
 	query := fmt.Sprintf("DELETE FROM Events WHERE %s", where)
 
-	_, err := s.db.ExecContext(s.createTimeoutCtx(), query, args...)
+	res, err := s.db.ExecContext(s.createTimeoutCtx(), query, args...)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	cnt, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return cnt, nil
 }
 
 func (s *Storage) SetEventsNotified(ids []uuid.UUID, notified time.Time) error {

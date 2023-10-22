@@ -68,7 +68,7 @@ func (s *Storage) GetEvent(id uuid.UUID) (storage.Event, error) {
 	return e, nil
 }
 
-func (s *Storage) DeleteEvents(search []storage.EventCondition) error {
+func (s *Storage) DeleteEvents(search []storage.EventCondition) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -76,7 +76,7 @@ func (s *Storage) DeleteEvents(search []storage.EventCondition) error {
 	for k, v := range s.data {
 		b, err := searchEvent(v, search)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if b {
 			toDelete = append(toDelete, k)
@@ -86,7 +86,7 @@ func (s *Storage) DeleteEvents(search []storage.EventCondition) error {
 		delete(s.data, k)
 	}
 
-	return nil
+	return int64(len(toDelete)), nil
 }
 
 func (s *Storage) SetEventsNotified(ids []uuid.UUID, notified time.Time) error {
