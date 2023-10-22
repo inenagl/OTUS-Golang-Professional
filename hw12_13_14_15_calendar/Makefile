@@ -49,7 +49,9 @@ build-img:
 		-f build/package/sender/Dockerfile .
 
 run-img: build-img
-	docker run $(DOCKER_IMG)
+	docker run -d $(DOCKER_IMG)
+	docker run -d $(DOCKER_SCHEDULER_IMG)
+	docker run -d $(DOCKER_SENDER_IMG)
 
 version: build
 	$(BIN) version
@@ -103,12 +105,22 @@ stop_db:
 	docker rm $(POSTGRES_NAME)
 
 up:
-	docker compose -f deployments/docker-compose.yaml up -d
+	docker compose -f deployments/docker-compose.yaml -p calendar up -d
 
 up-build:
-	docker compose -f deployments/docker-compose.yaml up -d --build
+	docker compose -f deployments/docker-compose.yaml -p calendar up -d --build
 
 down:
-	docker compose -f deployments/docker-compose.yaml down
+	docker compose -f deployments/docker-compose.yaml -p calendar down
 
-.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate run_mq stop_mq run_db stop_db up up-build down
+integration-tests-build:
+	docker compose -f deployments/docker-compose.test.yaml -p calendar-test build
+
+integration-tests:
+	docker compose -f deployments/docker-compose.test.yaml -p calendar-test up --exit-code-from tests --attach tests && \
+	EXIT_CODE=$$? &&\
+	docker compose -f deployments/docker-compose.test.yaml -p calendar-test down && \
+    echo "command exited with $$EXIT_CODE" && \
+    exit $$EXIT_CODE
+
+.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate run_mq stop_mq run_db stop_db up up-build down integration-tests-build integration-tests

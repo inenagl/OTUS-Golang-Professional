@@ -29,15 +29,20 @@ LABEL ORGANIZATION=""
 LABEL SERVICE="calendar"
 LABEL MAINTAINERS="inenagl@hotmail.com"
 
+RUN apk add --no-cache bash
+
 ENV BIN_FILE "/opt/calendar/calendar-app"
-ENV MIGRATE_FILE /opt/calendar/migrate
+ENV MIGRATE_FILE "/opt/calendar/migrate"
 COPY --from=build ${BIN_FILE} ${BIN_FILE}
 COPY --from=build ${MIGRATE_FILE} ${MIGRATE_FILE}
+
+COPY ./build/bin/wait-for-it.sh /bin/wait-for-it.sh
+RUN chmod +x /bin/wait-for-it.sh
 
 WORKDIR /go/m
 COPY --from=build /go/src/migrations ./migrations
 
-ENV CONFIG_FILE /etc/calendar/config.yaml
+ENV CONFIG_FILE "/etc/calendar/config.yaml"
 COPY ./configs/config.yaml ${CONFIG_FILE}
 
 EXPOSE 8081

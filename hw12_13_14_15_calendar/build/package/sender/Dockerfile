@@ -25,10 +25,15 @@ LABEL ORGANIZATION=""
 LABEL SERVICE="calendar_sender"
 LABEL MAINTAINERS="inenagl@hotmail.com"
 
+RUN apk add --no-cache bash
+
 ENV BIN_FILE "/opt/calendar/calendar-sender"
 COPY --from=build ${BIN_FILE} ${BIN_FILE}
 
-ENV CONFIG_FILE /etc/calendar/config.yaml
+ENV CONFIG_FILE "/etc/calendar/config.yaml"
 COPY ./configs/config_sender.yaml ${CONFIG_FILE}
+
+COPY ./build/bin/wait-for-it.sh /bin/wait-for-it.sh
+RUN chmod +x /bin/wait-for-it.sh
 
 CMD ${BIN_FILE} -config ${CONFIG_FILE}
