@@ -320,8 +320,9 @@ func TestDeleteEvents(t *testing.T) {
 	conds := []storage.EventCondition{
 		{Field: storage.EventEndDate, Type: storage.TypeLessOrEq, Sample: now.AddDate(0, 0, -1)},
 	}
-	err := s.DeleteEvents(conds)
+	cnt, err := s.DeleteEvents(conds)
 	require.NoError(t, err)
+	require.Equal(t, int64(1), cnt)
 
 	expected := map[uuid.UUID]storage.Event{
 		events[0].ID: events[0],

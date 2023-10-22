@@ -23,6 +23,7 @@ var marshalledFields = []json.EventField{
 	json.EventEndDate,
 	json.EventDescription,
 	json.EventNotifyBefore,
+	json.EventUserID,
 }
 
 type Scheduler interface {
@@ -42,7 +43,7 @@ type S struct {
 type Storage interface {
 	SetEventsNotified(ids []uuid.UUID, notified time.Time) error
 	NotificationNeededEvents(t time.Time) ([]storage.Event, error)
-	DeleteEvents(filter []storage.EventCondition) error
+	DeleteEvents(filter []storage.EventCondition) (int64, error)
 }
 
 func New(
@@ -148,7 +149,7 @@ func (s *S) notify() error {
 			errs = append(errs, fmt.Sprintf("event %s: %s", event.ID.String(), err.Error()))
 			continue
 		}
-		s.logger.Debug("published " + event.ID.String())
+		s.logger.Info("published " + event.ID.String())
 		err = s.storage.SetEventsNotified([]uuid.UUID{event.ID}, t)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("event %s: %s", event.ID.String(), err.Error()))
@@ -168,5 +169,11 @@ func (s *S) deleteOldEvents() error {
 		{Field: storage.EventEndDate, Type: storage.TypeLess, Sample: time.Now().Add(-1 * s.expiration)},
 	}
 
-	return s.storage.DeleteEvents(filter)
+	cnt, err := s.storage.DeleteEvents(filter)
+	if err != nil {
+		return err
+	}
+	s.logger.Info(fmt.Sprintf("deleted %d event(s)", cnt))
+
+	return nil
 }
