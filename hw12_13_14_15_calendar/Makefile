@@ -116,11 +116,14 @@ down:
 integration-tests-build:
 	docker compose -f deployments/docker-compose.test.yaml -p calendar-test build
 
-integration-tests:
+integration-tests-build_tests:
+	docker compose -f deployments/docker-compose.test.yaml -p calendar-test build tests
+
+integration-tests: #integration-tests-build
 	docker compose -f deployments/docker-compose.test.yaml -p calendar-test up --exit-code-from tests --attach tests && \
 	EXIT_CODE=$$? &&\
 	docker compose -f deployments/docker-compose.test.yaml -p calendar-test down && \
     echo "command exited with $$EXIT_CODE" && \
     exit $$EXIT_CODE
 
-.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate run_mq stop_mq run_db stop_db up up-build down integration-tests-build integration-tests
+.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate run_mq stop_mq run_db stop_db up up-build down integration-tests-build integration-tests integration-tests-build_tests
