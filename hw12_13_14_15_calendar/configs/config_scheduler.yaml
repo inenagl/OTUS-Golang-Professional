@@ -1,0 +1,35 @@
+scheduler:
+  workcycle: 1m
+  expiration: 8784h    # == 366 days
+
+logger:
+  preset: "dev"        # "dev"|"prod"
+  level: "debug"       # "debug"|"info"|"warn"|"error"|"dpanic"|"panic"|"fatal"
+  encoding: "console"  # "console"|"json"
+  outputPaths:
+    - "stdout"
+  errorOutputPaths:
+    - "stdout"
+
+storage:
+  type: "sql"          # "memory"|"sql"
+
+dbname: "calendar"      # need be set in env if type = "sql"
+dbhost: "localhost"     # need be set in env if type = "sql"
+dbport: 5432            # need be set in env if type = "sql"
+dbsslmode: "disable"
+dbuser: "cuser"         # need be set in env if type = "sql"
+dbpassword: "cpassword" # need be set in env if type = "sql"
+dbtimeout: "10s"
+
+producer:
+  exchangeName: "calendar-exchange"
+  routingKey: "calendar-key"
+  exchangeType: "topic"   # "direct"|"fanout"|"topic"|"x-custom"
+  queueName: "calendar-send-queue"
+  qosCount: 50
+
+amqphost: "localhost"     # need be set in env
+amqpport: 5672            # need be set in env
+amqpuser: "guest"         # need be set in env
+amqppassword: "guest"     # need be set in env

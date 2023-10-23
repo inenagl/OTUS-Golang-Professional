@@ -9,6 +9,7 @@ require (
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/spf13/viper v1.16.0
+	github.com/streadway/amqp v1.1.0
 	github.com/stretchr/testify v1.8.3
 	github.com/tidwall/gjson v1.17.0
 	github.com/urfave/negroni v1.0.0

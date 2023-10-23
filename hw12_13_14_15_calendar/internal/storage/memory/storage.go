@@ -68,6 +68,53 @@ func (s *Storage) GetEvent(id uuid.UUID) (storage.Event, error) {
 	return e, nil
 }
 
+func (s *Storage) DeleteEvents(search []storage.EventCondition) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	toDelete := make([]uuid.UUID, 0)
+	for k, v := range s.data {
+		b, err := searchEvent(v, search)
+		if err != nil {
+			return 0, err
+		}
+		if b {
+			toDelete = append(toDelete, k)
+		}
+	}
+	for _, k := range toDelete {
+		delete(s.data, k)
+	}
+
+	return int64(len(toDelete)), nil
+}
+
+func (s *Storage) SetEventsNotified(ids []uuid.UUID, notified time.Time) error {
+	for _, id := range ids {
+		if event, ok := s.data[id]; ok {
+			event.NotifiedAt = notified
+			s.data[id] = event
+		}
+	}
+
+	return nil
+}
+
+func (s *Storage) NotificationNeededEvents(t time.Time) ([]storage.Event, error) {
+	res := make([]storage.Event, 0)
+	var timeToNotify int64
+	for _, event := range s.data {
+		timeToNotify = event.StartDate.Add(-1 * event.NotifyBefore).Unix()
+		// Если время нотификации прошло, и прошлая нотификация была раньше этого времени,
+		// то нужно отправлять новую нотификацию
+		if timeToNotify < t.Unix() && timeToNotify > event.NotifiedAt.Unix() {
+			res = append(res, event)
+		}
+	}
+
+	return res, nil
+}
+
 func (s *Storage) GetEvents(search []storage.EventCondition, order []storage.EventSort) ([]storage.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -95,20 +142,22 @@ func (s *Storage) GetEvents(search []storage.EventCondition, order []storage.Eve
 			}
 			return false
 		}
-		sort.Slice(result, func(i, j int) bool {
-			var isLess bool
-			for _, ord := range order {
-				if result[i].GetFieldValue(ord.Field) != result[j].GetFieldValue(ord.Field) {
-					isLess = lessComp(result[i].GetFieldValue(ord.Field), result[j].GetFieldValue(ord.Field))
+		sort.Slice(
+			result, func(i, j int) bool {
+				var isLess bool
+				for _, ord := range order {
+					if result[i].GetFieldValue(ord.Field) != result[j].GetFieldValue(ord.Field) {
+						isLess = lessComp(result[i].GetFieldValue(ord.Field), result[j].GetFieldValue(ord.Field))
 
-					if ord.Direction == storage.DirectionAsc {
-						return isLess
+						if ord.Direction == storage.DirectionAsc {
+							return isLess
+						}
+						return !isLess
 					}
-					return !isLess
 				}
-			}
-			return false
-		})
+				return false
+			},
+		)
 	}
 
 	return result, nil

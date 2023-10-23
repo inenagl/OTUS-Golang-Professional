@@ -1,0 +1,24 @@
+sender:
+  threads: 2
+
+logger:
+  preset: "dev"        # "dev"|"prod"
+  level: "debug"       # "debug"|"info"|"warn"|"error"|"dpanic"|"panic"|"fatal"
+  encoding: "console"  # "console"|"json"
+  outputPaths:
+    - "stdout"
+  errorOutputPaths:
+    - "stdout"
+
+consumer:
+  exchangeName: "calendar-exchange"
+  routingKey: "calendar-key"
+  exchangeType: "topic"   # "direct"|"fanout"|"topic"|"x-custom"
+  queueName: "calendar-send-queue"
+  consumerTag: "sender-consumer-tag"
+  qosCount: 50
+
+amqphost: "localhost"     # need be set in env
+amqpport: 5672            # need be set in env
+amqpuser: "guest"         # need be set in env
+amqppassword: "guest"     # need be set in env

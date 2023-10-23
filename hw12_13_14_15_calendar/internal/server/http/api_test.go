@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/app"
+	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/json"
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/logger"
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/storage"
 	memorystorage "github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/storage/memory"
@@ -91,14 +92,14 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		os.Exit(2)
 	}
-	tm := time.NewTimer(3 * time.Second)
+	tm := time.NewTimer(10 * time.Second)
 	for res, err := testClient.Do(req); err != nil; {
 		res.Body.Close()
 		select {
 		case <-tm.C:
 			break
 		default:
-			time.Sleep(time.Millisecond)
+			time.Sleep(time.Second)
 		}
 	}
 	if err != nil {
@@ -141,7 +142,7 @@ func TestGetEvent(t *testing.T) {
 	body, _ := io.ReadAll(res.Body)
 
 	var result storage.Event
-	err = unmarshallEvent(string(body), &result)
+	err = json.UnmarshallEvent(string(body), &result, unmarshalledFields)
 	require.NoError(t, err)
 	result.ID = event.ID
 	result.UserID = userID
@@ -169,7 +170,7 @@ func TestUpdateEvent(t *testing.T) {
 	updatedEvent.Description = fake.Paragraph()
 	updatedEvent.NotifyBefore = 15 * time.Minute
 
-	reqBody := bytes.NewReader([]byte(marshallEvent(updatedEvent)))
+	reqBody := bytes.NewReader([]byte(json.MarshallEvent(updatedEvent, marshalledFields)))
 	uri := fmt.Sprintf(testUris[testMethodUpdateEvent], event.ID.String())
 	req, _ := http.NewRequestWithContext(contextTimeout(), http.MethodPost, uri, reqBody)
 	req.Header.Add(UserIDHeader, userID.String())
@@ -181,7 +182,7 @@ func TestUpdateEvent(t *testing.T) {
 	body, _ := io.ReadAll(res.Body)
 
 	var result storage.Event
-	err = unmarshallEvent(string(body), &result)
+	err = json.UnmarshallEvent(string(body), &result, unmarshalledFields)
 	require.NoError(t, err)
 	result.ID = event.ID
 	result.UserID = userID
@@ -204,7 +205,7 @@ func TestCreateEvent(t *testing.T) {
 		NotifyBefore: 24 * time.Hour,
 	}
 
-	reqBody := bytes.NewReader([]byte(marshallEvent(event)))
+	reqBody := bytes.NewReader([]byte(json.MarshallEvent(event, marshalledFields)))
 	uri := testUris[testMethodCreateEvent]
 	req, _ := http.NewRequestWithContext(contextTimeout(), http.MethodPost, uri, reqBody)
 	req.Header.Add(UserIDHeader, userID.String())
@@ -214,11 +215,11 @@ func TestCreateEvent(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-	eventID, _ := uuid.Parse(gjson.Get(string(body), string(EventID)).String())
+	eventID, _ := uuid.Parse(gjson.Get(string(body), string(json.EventID)).String())
 	event.ID = eventID
 
 	var result storage.Event
-	err = unmarshallEvent(string(body), &result)
+	err = json.UnmarshallEvent(string(body), &result, unmarshalledFields)
 	require.NoError(t, err)
 	result.ID = eventID
 	result.UserID = userID
@@ -306,7 +307,7 @@ func TestGetForDay(t *testing.T) {
 
 	result := make([]storage.Event, 2)
 	for i, val := range gjson.Parse(string(body)).Array() {
-		err = unmarshallEvent(val.Raw, &result[i])
+		err = json.UnmarshallEvent(val.Raw, &result[i], unmarshalledFields)
 		require.NoError(t, err)
 		result[i].ID, _ = uuid.Parse(val.Get("ID").String())
 		result[i].UserID = userID
@@ -374,7 +375,7 @@ func TestGetForWeek(t *testing.T) {
 
 	result := make([]storage.Event, 3)
 	for i, val := range gjson.Parse(string(body)).Array() {
-		err = unmarshallEvent(val.Raw, &result[i])
+		err = json.UnmarshallEvent(val.Raw, &result[i], unmarshalledFields)
 		require.NoError(t, err)
 		result[i].ID, _ = uuid.Parse(val.Get("ID").String())
 		result[i].UserID = userID
@@ -442,7 +443,7 @@ func TestGetForMonth(t *testing.T) {
 
 	result := make([]storage.Event, 2)
 	for i, val := range gjson.Parse(string(body)).Array() {
-		err = unmarshallEvent(val.Raw, &result[i])
+		err = json.UnmarshallEvent(val.Raw, &result[i], unmarshalledFields)
 		require.NoError(t, err)
 		result[i].ID, _ = uuid.Parse(val.Get("ID").String())
 		result[i].UserID = userID

@@ -22,6 +22,7 @@ var fieldsMap = map[storage.EventField]string{
 	storage.EventDescription:  "description",
 	storage.EventUserID:       "user_id",
 	storage.EventNotifyBefore: "notify_before",
+	storage.EventNotifiedAt:   "notified_at",
 }
 
 type Storage struct {
@@ -84,9 +85,12 @@ func (s *Storage) AddEvent(event storage.Event) (storage.Event, error) {
 		return storage.Event{}, err
 	}
 
-	query, args, err := sqlx.Named(`INSERT INTO Events 
-    	(title, description, start_date, end_date, user_id, notify_before)
-        VALUES (:title, :description, :start_date, :end_date, :user_id, :notify_before) RETURNING id`, event)
+	query, args, err := sqlx.Named(
+		`INSERT INTO Events 
+    	(title, description, start_date, end_date, user_id, notify_before, notified_at)
+        VALUES (:title, :description, :start_date, :end_date, :user_id, :notify_before, :notified_at) RETURNING id`,
+		event,
+	)
 	if err != nil {
 		return storage.Event{}, err
 	}
@@ -111,16 +115,19 @@ func (s *Storage) UpdateEvent(event storage.Event) error {
 		return err
 	}
 
-	_, err := s.db.NamedExecContext(s.createTimeoutCtx(),
+	_, err := s.db.NamedExecContext(
+		s.createTimeoutCtx(),
 		`UPDATE Events SET
                   title = :title,
                   description = :description,
                   start_date = :start_date,
                   end_date = :end_date,
                   user_id = :user_id,
-                  notify_before = :notify_before
+                  notify_before = :notify_before,
+                  notified_at = :notified_at
             WHERE id=:id`,
-		event)
+		event,
+	)
 	if err != nil {
 		return err
 	}
@@ -147,8 +154,14 @@ func (s *Storage) GetEvent(id uuid.UUID) (storage.Event, error) {
 	}
 
 	event := storage.Event{}
-	err := s.db.GetContext(s.createTimeoutCtx(), &event,
-		"SELECT id, title, description, start_date, end_date, user_id, notify_before  FROM Events WHERE id = $1", id)
+	err := s.db.GetContext(
+		s.createTimeoutCtx(),
+		&event,
+		`
+SELECT id, title, description, start_date, end_date, user_id, notify_before, notified_at
+FROM Events WHERE id = $1`,
+		id,
+	)
 	if err != nil {
 		if errors.Is(sql.ErrNoRows, err) {
 			err = storage.ErrEventNotFound
@@ -159,17 +172,89 @@ func (s *Storage) GetEvent(id uuid.UUID) (storage.Event, error) {
 	return event, nil
 }
 
+func (s *Storage) DeleteEvents(filter []storage.EventCondition) (int64, error) {
+	if len(filter) == 0 {
+		return 0, errors.New("delete: filter required")
+	}
+	if err := s.Ping(); err != nil {
+		return 0, err
+	}
+
+	args := make([]interface{}, 0, len(filter))
+	where, args := getWhere(filter, args, 1)
+	query := fmt.Sprintf("DELETE FROM Events WHERE %s", where)
+
+	res, err := s.db.ExecContext(s.createTimeoutCtx(), query, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	cnt, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return cnt, nil
+}
+
+func (s *Storage) SetEventsNotified(ids []uuid.UUID, notified time.Time) error {
+	if len(ids) == 0 {
+		return errors.New("set notified: ids required")
+	}
+	if err := s.Ping(); err != nil {
+		return err
+	}
+
+	args := make([]interface{}, 1, len(ids)+1)
+	args[0] = notified
+
+	filter := []storage.EventCondition{
+		{Field: storage.EventID, Type: storage.TypeIn, Sample: ids},
+	}
+	where, args := getWhere(filter, args, 2)
+	query := fmt.Sprintf("UPDATE Events SET notified_at = $1 WHERE %s", where)
+
+	_, err := s.db.ExecContext(s.createTimeoutCtx(), query, args...)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Storage) NotificationNeededEvents(t time.Time) ([]storage.Event, error) {
+	if err := s.Ping(); err != nil {
+		return []storage.Event{}, err
+	}
+
+	query := `
+SELECT id, title, description, start_date, end_date, user_id, notify_before, notified_at 
+FROM Events 
+WHERE 
+	start_date - make_interval(secs => notify_before/1000000000) < $1
+	AND notified_at < start_date - make_interval(secs => notify_before/1000000000)`
+	args := []interface{}{t}
+
+	var events []storage.Event
+	err := s.db.SelectContext(s.createTimeoutCtx(), &events, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return events, nil
+}
+
 func (s *Storage) GetEvents(filter []storage.EventCondition, sort []storage.EventSort) ([]storage.Event, error) {
 	if err := s.Ping(); err != nil {
 		return []storage.Event{}, err
 	}
 
 	qb := strings.Builder{}
-	qb.WriteString("SELECT id, title, description, start_date, end_date, user_id, notify_before FROM Events")
+	qb.WriteString("SELECT id, title, description, start_date, end_date, user_id, notify_before, notified_at FROM Events")
 
 	args := make([]interface{}, 0, len(filter))
 	if len(filter) > 0 {
-		where, a := getWhere(filter, args)
+		where, a := getWhere(filter, args, 1)
 		qb.WriteString(" WHERE ")
 		qb.WriteString(where)
 		args = a
@@ -199,9 +284,9 @@ func getSort(sorts []storage.EventSort) string {
 	return strings.Join(s, ", ")
 }
 
-func getWhere(filter []storage.EventCondition, args []interface{}) (string, []interface{}) {
+func getWhere(filter []storage.EventCondition, args []interface{}, startPos int) (string, []interface{}) {
 	wheres := make([]string, 0, len(filter))
-	i := 1
+	i := startPos
 	for _, v := range filter {
 		if v.Type == storage.TypeIn || v.Type == storage.TypeNotIn {
 			var inStr []string

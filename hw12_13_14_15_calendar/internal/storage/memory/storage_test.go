@@ -233,26 +233,31 @@ func TestGetEvents(t *testing.T) {
 		s.data[e.ID] = e
 	}
 
-	t.Run("Full list", func(t *testing.T) {
-		t.Parallel()
-		res, err := s.GetEvents([]storage.EventCondition{}, []storage.EventSort{})
-		require.NoError(t, err)
-		require.ElementsMatch(t, events, res)
-	})
+	t.Run(
+		"Full list", func(t *testing.T) {
+			t.Parallel()
+			res, err := s.GetEvents([]storage.EventCondition{}, []storage.EventSort{})
+			require.NoError(t, err)
+			require.ElementsMatch(t, events, res)
+		},
+	)
 
-	t.Run("Up to now events for user 1 and 2", func(t *testing.T) {
-		t.Parallel()
-		conds := []storage.EventCondition{
-			{Field: storage.EventUserID, Type: storage.TypeIn, Sample: []uuid.UUID{userID1, userID2}},
-			{Field: storage.EventStartDate, Type: storage.TypeLessOrEq, Sample: now},
-		}
-		expected := []storage.Event{events[0], events[3], events[4]}
-		res, err := s.GetEvents(conds, []storage.EventSort{})
-		require.NoError(t, err)
-		require.ElementsMatch(t, expected, res)
-	})
+	t.Run(
+		"Up to now events for user 1 and 2", func(t *testing.T) {
+			t.Parallel()
+			conds := []storage.EventCondition{
+				{Field: storage.EventUserID, Type: storage.TypeIn, Sample: []uuid.UUID{userID1, userID2}},
+				{Field: storage.EventStartDate, Type: storage.TypeLessOrEq, Sample: now},
+			}
+			expected := []storage.Event{events[0], events[3], events[4]}
+			res, err := s.GetEvents(conds, []storage.EventSort{})
+			require.NoError(t, err)
+			require.ElementsMatch(t, expected, res)
+		},
+	)
 
-	t.Run("Events for user 1 and 2 between now and tomorrow, ordered by enddate DESC and description DESC",
+	t.Run(
+		"Events for user 1 and 2 between now and tomorrow, ordered by enddate DESC and description DESC",
 		func(t *testing.T) {
 			t.Parallel()
 			conds := []storage.EventCondition{
@@ -268,5 +273,166 @@ func TestGetEvents(t *testing.T) {
 			res, err := s.GetEvents(conds, order)
 			require.NoError(t, err)
 			require.Equal(t, expected, res)
-		})
+		},
+	)
+}
+
+func TestDeleteEvents(t *testing.T) {
+	userID := uuid.New()
+
+	now := time.Now()
+	events := []storage.Event{
+		{
+			ID:           uuid.New(),
+			Title:        "Event 0",
+			StartDate:    now,
+			EndDate:      now.Add(15 * time.Minute),
+			Description:  "User 1, now, duration 15 minutes",
+			UserID:       userID,
+			NotifyBefore: time.Hour,
+		},
+		{
+			ID:           uuid.New(),
+			Title:        "Event 1",
+			StartDate:    now.AddDate(0, 0, -1).Add(-2 * time.Hour),
+			EndDate:      now.AddDate(0, 0, -1).Add(-1 * time.Hour),
+			Description:  "User 1, 1 day and 2 hours before, duration 1 hour",
+			UserID:       userID,
+			NotifyBefore: time.Hour,
+		},
+		{
+			ID:           uuid.New(),
+			Title:        "Event 2",
+			StartDate:    now.AddDate(0, 0, 1),
+			EndDate:      now.AddDate(0, 0, 1).Add(15 * time.Minute),
+			Description:  "User 1, 1 day later, duration 15 minutes",
+			UserID:       userID,
+			NotifyBefore: time.Hour,
+		},
+	}
+	s := New()
+	require.Equal(t, 0, len(s.data))
+
+	for _, e := range events {
+		s.data[e.ID] = e
+	}
+
+	conds := []storage.EventCondition{
+		{Field: storage.EventEndDate, Type: storage.TypeLessOrEq, Sample: now.AddDate(0, 0, -1)},
+	}
+	cnt, err := s.DeleteEvents(conds)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), cnt)
+
+	expected := map[uuid.UUID]storage.Event{
+		events[0].ID: events[0],
+		events[2].ID: events[2],
+	}
+	require.Equal(t, expected, s.data)
+}
+
+func TestSetEventsNotified(t *testing.T) {
+	userID := uuid.New()
+
+	now := time.Now()
+	events := []storage.Event{
+		{
+			ID:           uuid.New(),
+			Title:        "Event 0",
+			StartDate:    now,
+			EndDate:      now.Add(15 * time.Minute),
+			Description:  "Notified 1 day ago",
+			UserID:       userID,
+			NotifyBefore: time.Hour,
+			NotifiedAt:   now.AddDate(0, 0, -1),
+		},
+		{
+			ID:           uuid.New(),
+			Title:        "Event 1",
+			StartDate:    now.AddDate(0, 0, -1).Add(-2 * time.Hour),
+			EndDate:      now.AddDate(0, 0, -1).Add(-1 * time.Hour),
+			Description:  "Notified 2 day ago",
+			UserID:       userID,
+			NotifyBefore: time.Hour,
+			NotifiedAt:   now.AddDate(0, 0, -2),
+		},
+		{
+			ID:           uuid.New(),
+			Title:        "Event 2",
+			StartDate:    now.AddDate(0, 0, 1),
+			EndDate:      now.AddDate(0, 0, 1).Add(15 * time.Minute),
+			Description:  "Notified 3 day ago",
+			UserID:       userID,
+			NotifyBefore: time.Hour,
+			NotifiedAt:   now.AddDate(0, 0, -3),
+		},
+	}
+	s := New()
+	require.Equal(t, 0, len(s.data))
+
+	for _, e := range events {
+		s.data[e.ID] = e
+	}
+
+	err := s.SetEventsNotified([]uuid.UUID{events[1].ID, events[2].ID}, now)
+	require.NoError(t, err)
+
+	events[1].NotifiedAt = now
+	events[2].NotifiedAt = now
+	expected := map[uuid.UUID]storage.Event{
+		events[0].ID: events[0],
+		events[1].ID: events[1],
+		events[2].ID: events[2],
+	}
+	require.Equal(t, expected, s.data)
+}
+
+func TestNotificationNeededEvents(t *testing.T) {
+	userID := uuid.New()
+
+	now := time.Now()
+	events := []storage.Event{
+		{
+			ID:           uuid.New(),
+			Title:        "Event 0",
+			StartDate:    now,
+			EndDate:      now.Add(15 * time.Minute),
+			Description:  "Start now, notify 1 hour, notified day before",
+			UserID:       userID,
+			NotifyBefore: time.Hour,
+			NotifiedAt:   now.AddDate(0, 0, -1),
+		},
+		{
+			ID:           uuid.New(),
+			Title:        "Event 1",
+			StartDate:    now.AddDate(0, 0, 1),
+			EndDate:      now.AddDate(0, 0, 1).Add(1 * time.Hour),
+			Description:  "Start tomorrow, notify 1 minute before, notified now",
+			UserID:       userID,
+			NotifyBefore: 24*time.Hour + 1*time.Minute,
+			NotifiedAt:   now,
+		},
+		{
+			ID:           uuid.New(),
+			Title:        "Event 2",
+			StartDate:    now.AddDate(0, 0, 1),
+			EndDate:      now.AddDate(0, 0, 1).Add(1 * time.Hour),
+			Description:  "Start tomorrow, notify 1 minute before, notified yesterday",
+			UserID:       userID,
+			NotifyBefore: 24*time.Hour + 1*time.Minute,
+			NotifiedAt:   now.AddDate(0, 0, -1),
+		},
+	}
+	s := New()
+	require.Equal(t, 0, len(s.data))
+
+	for _, e := range events {
+		s.data[e.ID] = e
+	}
+
+	res, err := s.NotificationNeededEvents(now)
+	require.NoError(t, err)
+
+	expected := []storage.Event{events[0], events[2]}
+	require.ElementsMatch(t, expected, res)
 }

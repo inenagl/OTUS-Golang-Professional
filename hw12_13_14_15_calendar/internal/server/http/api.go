@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/app"
+	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/json"
 	"github.com/inenagl/hw-Go-Prof/hw12_13_14_15_calendar/internal/storage"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -18,14 +19,22 @@ import (
 
 type EventField string
 
-const (
-	EventID           = EventField(storage.EventID)
-	EventTitle        = EventField(storage.EventTitle)
-	EventStartDate    = EventField(storage.EventStartDate)
-	EventEndDate      = EventField(storage.EventEndDate)
-	EventDescription  = EventField(storage.EventDescription)
-	EventNotifyBefore = EventField(storage.EventNotifyBefore)
-)
+var marshalledFields = []json.EventField{
+	json.EventID,
+	json.EventTitle,
+	json.EventStartDate,
+	json.EventEndDate,
+	json.EventDescription,
+	json.EventNotifyBefore,
+}
+
+var unmarshalledFields = []json.EventField{
+	json.EventTitle,
+	json.EventDescription,
+	json.EventStartDate,
+	json.EventEndDate,
+	json.EventNotifyBefore,
+}
 
 type SearchPeriod int
 
@@ -35,87 +44,6 @@ const (
 	Week
 	Month
 )
-
-type fieldParseErr struct {
-	err   error
-	field EventField
-}
-
-func (e fieldParseErr) Error() string {
-	return e.err.Error()
-}
-
-func marshallEvent(event storage.Event) string {
-	return fmt.Sprintf(`{"%s":"%s","%s":"%s","%s":"%s","%s":"%s","%s":"%s","%s":"%s"}`,
-		EventID, event.ID.String(),
-		EventTitle, event.Title,
-		EventStartDate, event.StartDate.Format(time.DateTime),
-		EventEndDate, event.EndDate.Format(time.DateTime),
-		EventDescription, event.Description,
-		EventNotifyBefore, event.NotifyBefore.String(),
-	)
-}
-
-func unmarshallEvent(source string, target *storage.Event) error {
-	fields := []EventField{
-		EventTitle,
-		EventDescription,
-		EventStartDate,
-		EventEndDate,
-		EventNotifyBefore,
-	}
-
-	for _, field := range fields {
-		value := gjson.Get(source, string(field))
-		if !value.Exists() {
-			continue
-		}
-		switch field { //nolint:exhaustive
-		case EventTitle:
-			target.Title = value.String()
-		case EventDescription:
-			target.Description = value.String()
-		case EventStartDate:
-			tm, err := time.Parse(time.DateTime, value.String())
-			if err != nil {
-				return fieldParseErr{err, field}
-			}
-			target.StartDate = tm
-		case EventEndDate:
-			tm, err := time.Parse(time.DateTime, value.String())
-			if err != nil {
-				return fieldParseErr{err, field}
-			}
-			target.EndDate = tm
-		case EventNotifyBefore:
-			dr, err := time.ParseDuration(value.String())
-			if err != nil {
-				return fieldParseErr{err, field}
-			}
-			target.NotifyBefore = dr
-		default:
-			continue
-		}
-	}
-
-	return nil
-}
-
-func marshallEvents(events []storage.Event) string {
-	b := strings.Builder{}
-	b.WriteString("[")
-	l := len(events) - 1
-
-	for i := 0; i <= l; i++ {
-		b.WriteString(marshallEvent(events[i]))
-		if i != l {
-			b.WriteString(",")
-		}
-	}
-	b.WriteString("]")
-
-	return b.String()
-}
 
 func (s Server) write(w http.ResponseWriter, resp string) {
 	_, err := w.Write([]byte(resp))
@@ -217,11 +145,11 @@ func (s Server) getEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	s.write(w, marshallEvent(event))
+	s.write(w, json.MarshallEvent(event, marshalledFields))
 }
 
 func (s Server) updateEvent(w http.ResponseWriter, r *http.Request) {
-	json, ok := s.getValidJSONFromReq(w, r)
+	jsn, ok := s.getValidJSONFromReq(w, r)
 	if !ok {
 		return
 	}
@@ -231,12 +159,12 @@ func (s Server) updateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := unmarshallEvent(json, &target)
+	err := json.UnmarshallEvent(jsn, &target, unmarshalledFields)
 	if err != nil {
-		var ie fieldParseErr
+		var ie json.FieldParseErr
 		if errors.As(err, &ie) {
 			w.WriteHeader(http.StatusBadRequest)
-			s.writeError(w, "invalid value in "+string(ie.field))
+			s.writeError(w, "invalid value in "+string(ie.Field))
 		} else {
 			s.logger.Error(err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
@@ -261,7 +189,7 @@ func (s Server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	s.write(w, marshallEvent(res))
+	s.write(w, json.MarshallEvent(res, marshalledFields))
 }
 
 func (s Server) createEvent(w http.ResponseWriter, r *http.Request) {
@@ -270,19 +198,19 @@ func (s Server) createEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json, ok := s.getValidJSONFromReq(w, r)
+	jsn, ok := s.getValidJSONFromReq(w, r)
 	if !ok {
 		return
 	}
 
 	target := storage.Event{}
 
-	err := unmarshallEvent(json, &target)
+	err := json.UnmarshallEvent(jsn, &target, unmarshalledFields)
 	if err != nil {
-		var ie fieldParseErr
+		var ie json.FieldParseErr
 		if errors.As(err, &ie) {
 			w.WriteHeader(http.StatusBadRequest)
-			s.writeError(w, "invalid value in "+string(ie.field))
+			s.writeError(w, "invalid value in "+string(ie.Field))
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 			s.writeError(w, err.Error())
@@ -300,7 +228,7 @@ func (s Server) createEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	s.write(w, marshallEvent(res))
+	s.write(w, json.MarshallEvent(res, marshalledFields))
 }
 
 func (s Server) deleteEvent(w http.ResponseWriter, r *http.Request) {
@@ -354,7 +282,7 @@ func (s Server) getForPeriod(w http.ResponseWriter, r *http.Request, period Sear
 	}
 
 	w.WriteHeader(http.StatusOK)
-	s.write(w, marshallEvents(events))
+	s.write(w, json.MarshallEvents(events, marshalledFields))
 }
 
 func (s Server) getForDay(w http.ResponseWriter, r *http.Request) {
