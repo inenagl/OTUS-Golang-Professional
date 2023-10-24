@@ -31,19 +31,24 @@ type S struct {
 	logger   *zap.Logger
 	consumer queue.Consumer
 	cancel   context.CancelFunc
+	producer queue.Producer
 }
 
-func New(threads int, logg *zap.Logger, consumer queue.Consumer) *S {
+func New(threads int, logg *zap.Logger, consumer queue.Consumer, producer queue.Producer) *S {
 	return &S{
 		threads:  threads,
 		logger:   logg,
 		consumer: consumer,
+		producer: producer,
 	}
 }
 
 func (s *S) Start(ctx context.Context) error {
 	s.logger.Debug("consumer connect...")
 	if err := s.consumer.Connect(); err != nil {
+		return err
+	}
+	if err := s.producer.Connect(); err != nil {
 		return err
 	}
 
@@ -57,6 +62,10 @@ func (s *S) Stop() error {
 	s.logger.Debug("cancel in stop")
 	s.cancel()
 	err := s.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = s.producer.Close()
 	if err != nil {
 		return err
 	}
@@ -90,8 +99,11 @@ func (s *S) Handle(ctx context.Context, deliveries <-chan amqp.Delivery) {
 	}
 }
 
-func (s *S) send(event storage.Event) error { //nolint: unparam
-	// TODO была бы логика формирования и отправки нотификации о событии
+func (s *S) send(event storage.Event) error {
+	if err := s.producer.Publish(json.MarshallEvent(event, unmarshalledFields)); err != nil {
+		s.logger.Error("send to queue: " + err.Error())
+		return err
+	}
 
 	s.logger.Info(
 		"notification is sent",

@@ -119,7 +119,7 @@ integration-tests-build:
 integration-tests-build_tests:
 	docker compose -f deployments/docker-compose.test.yaml -p calendar-test build tests
 
-integration-tests: #integration-tests-build
+integration-tests:
 	docker compose -f deployments/docker-compose.test.yaml -p calendar-test up --exit-code-from tests --attach tests && \
 	EXIT_CODE=$$? &&\
 	docker compose -f deployments/docker-compose.test.yaml -p calendar-test down && \

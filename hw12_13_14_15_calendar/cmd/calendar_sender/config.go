@@ -21,6 +21,7 @@ type Config struct {
 	Sender   SenderConf
 	Logger   LoggerConf
 	Consumer ConsumerConf
+	Producer ProducerConf
 }
 
 type SenderConf struct {
@@ -46,6 +47,18 @@ type ConsumerConf struct {
 	QueueName    string
 	QosCount     int
 	ConsumerTag  string
+}
+
+type ProducerConf struct {
+	Host         string
+	Port         int
+	User         string
+	Password     string
+	ExchangeName string
+	ExchangeType string
+	RoutingKey   string
+	QueueName    string
+	QosCount     int
 }
 
 func NewConfig(filePath string) (Config, error) {
@@ -76,6 +89,11 @@ func NewConfig(filePath string) (Config, error) {
 	}
 
 	config.Consumer, err = processConsumerConf()
+	if err != nil {
+		return config, err
+	}
+
+	config.Producer, err = processProducerConf()
 	if err != nil {
 		return config, err
 	}
@@ -156,6 +174,26 @@ func processConsumerConf() (ConsumerConf, error) {
 	conf.QosCount = viper.GetInt("consumer.qosCount")
 
 	val, err := getAllowedStringVal("consumer.exchangeType", []string{Direct, FanOut, Topic, XCustom})
+	if err != nil {
+		return conf, err
+	}
+	conf.ExchangeType = val
+
+	return conf, nil
+}
+
+func processProducerConf() (ProducerConf, error) {
+	conf := ProducerConf{}
+	conf.Host = viper.GetString("AMQPHost")
+	conf.Port = viper.GetInt("AMQPPort")
+	conf.User = viper.GetString("AMQPUser")
+	conf.Password = viper.GetString("AMQPPassword")
+	conf.ExchangeName = viper.GetString("producer.exchangeName")
+	conf.RoutingKey = viper.GetString("producer.routingKey")
+	conf.QueueName = viper.GetString("producer.queueName")
+	conf.QosCount = viper.GetInt("producer.qosCount")
+
+	val, err := getAllowedStringVal("producer.exchangeType", []string{Direct, FanOut, Topic, XCustom})
 	if err != nil {
 		return conf, err
 	}

@@ -30,8 +30,6 @@ services:
       - "8889:8082"
     env_file:
       - env/dbvars.env
-    logging:
-      driver: "none"
     depends_on:
       - db
     command:
@@ -48,8 +46,6 @@ services:
     env_file:
       - env/dbvars.env
       - env/amqpvars.env
-    logging:
-      driver: "none"
     depends_on:
       - db
       - rabbit
@@ -58,7 +54,7 @@ services:
       - -c
       - /bin/wait-for-it.sh rabbit:15672 -t 0 --
         /bin/wait-for-it.sh calendar:8081 -t 0 --
-        /opt/calendar/calendar-scheduler --config /etc/calendar/config.yaml
+        /opt/calendar/calendar-scheduler --config /etc/calendar/config-tests.yaml
 
   sender:
     build:
@@ -66,8 +62,6 @@ services:
       dockerfile: build/package/sender/Dockerfile
     env_file:
       - env/amqpvars.env
-    logging:
-      driver: none
     depends_on:
       - rabbit
     command:

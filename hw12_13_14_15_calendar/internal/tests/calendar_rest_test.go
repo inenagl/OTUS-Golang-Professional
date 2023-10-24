@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package integration_test
 
@@ -19,24 +18,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/tidwall/gjson"
 )
-
-var marshalledFields = []json.EventField{
-	json.EventID,
-	json.EventTitle,
-	json.EventStartDate,
-	json.EventEndDate,
-	json.EventDescription,
-	json.EventNotifyBefore,
-}
-
-var unmarshalledFields = []json.EventField{
-	json.EventID,
-	json.EventTitle,
-	json.EventDescription,
-	json.EventStartDate,
-	json.EventEndDate,
-	json.EventNotifyBefore,
-}
 
 type CalendarRESTSuite struct {
 	suite.Suite
@@ -307,8 +288,8 @@ func (s *CalendarRESTSuite) TestDeleteEvent() {
 func (s *CalendarRESTSuite) TestGetForDay() {
 	day := randomDay()
 	var anotherDay time.Time
-	for rDay := randomDay(); rDay.Unix() == day.Unix(); {
-		anotherDay = rDay
+	for anotherDay = randomDay(); anotherDay.Unix() == day.Unix(); {
+		continue
 	}
 	events := make([]storage.Event, 5)
 	var ev storage.Event

@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package integration_test
 
@@ -196,8 +195,8 @@ func (s *CalendarGRPCSuite) TestDeleteEvent() {
 func (s *CalendarGRPCSuite) TestGetForDay() {
 	day := randomDay()
 	var anotherDay time.Time
-	for rDay := randomDay(); rDay.Unix() == day.Unix(); {
-		anotherDay = rDay
+	for anotherDay = randomDay(); anotherDay.Unix() == day.Unix(); {
+		continue
 	}
 	events := make([]*grpcapi.Event, 5)
 	var ev grpcapi.Event
