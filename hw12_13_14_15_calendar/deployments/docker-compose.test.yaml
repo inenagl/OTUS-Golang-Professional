@@ -8,11 +8,15 @@ services:
       - "PGDATA=/var/lib/postgresql/data/pgdata"
     volumes:
       - ./db:/docker-entrypoint-initdb.d
+    logging:
+      driver: "none"
     ports:
       - "5432:5432"
 
   rabbit:
     image: "rabbitmq:3-management"
+    logging:
+      driver: "none"
     ports:
       - "15672:15672"
       - "5672:5672"
@@ -26,16 +30,14 @@ services:
       - "8889:8082"
     env_file:
       - env/dbvars.env
-    restart: on-failure
     depends_on:
       - db
     command:
       - sh
       - -c
       - /bin/wait-for-it.sh db:5432 -t 0 --
-        /opt/calendar/migrate up migrations && 
+        /opt/calendar/migrate up migrations &&
         /opt/calendar/calendar-app --config /etc/calendar/config.yaml
-
 
   scheduler:
     build:
@@ -52,7 +54,7 @@ services:
       - -c
       - /bin/wait-for-it.sh rabbit:15672 -t 0 --
         /bin/wait-for-it.sh calendar:8081 -t 0 --
-        /opt/calendar/calendar-scheduler --config /etc/calendar/config.yaml
+        /opt/calendar/calendar-scheduler --config /etc/calendar/config-tests.yaml
 
   sender:
     build:
@@ -67,3 +69,21 @@ services:
       - -c
       - /bin/wait-for-it.sh rabbit:15672 -t 0 --
         /opt/calendar/calendar-sender --config /etc/calendar/config.yaml
+
+  tests:
+    build:
+      context: ../
+      dockerfile: build/tests/Dockerfile
+    depends_on:
+      - sender
+      - scheduler
+      - calendar
+    env_file:
+      - env/amqpvars.env
+      - env/tests.env
+    command:
+      - sh
+      - -c
+      - /bin/wait-for-it.sh rabbit:15672 -t 0 --
+        /bin/wait-for-it.sh calendar:8081 -t 0 --
+        go test -v -tags=integration -race .

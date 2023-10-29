@@ -1,3 +1,7 @@
+scheduler:
+  workcycle: 1s
+  expiration: 8784h    # == 366 days
+
 logger:
   preset: "dev"        # "dev"|"prod"
   level: "debug"       # "debug"|"info"|"warn"|"error"|"dpanic"|"panic"|"fatal"
@@ -18,10 +22,14 @@ dbuser: "cuser"         # need be set in env if type = "sql"
 dbpassword: "cpassword" # need be set in env if type = "sql"
 dbtimeout: "10s"
 
-http-server:
-  host: ""
-  port: 8081
+producer:
+  exchangeName: "calendar-exchange"
+  routingKey: "calendar-key"
+  exchangeType: "topic"   # "direct"|"fanout"|"topic"|"x-custom"
+  queueName: "calendar-send-queue"
+  qosCount: 50
 
-grpc-server:
-  host: ""
-  port: 8082
+amqphost: "localhost"     # need be set in env
+amqpport: 5672            # need be set in env
+amqpuser: "guest"         # need be set in env
+amqppassword: "guest"     # need be set in env

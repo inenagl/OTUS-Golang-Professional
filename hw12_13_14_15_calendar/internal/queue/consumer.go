@@ -14,6 +14,7 @@ type Handler func(context.Context, <-chan amqp.Delivery)
 type Consumer interface {
 	Connect() error
 	Consume(ctx context.Context, handler Handler, threads int) error
+	PurgeQueue() (int, error)
 	Close() error
 }
 
@@ -120,6 +121,10 @@ func (c *C) consume() (<-chan amqp.Delivery, error) {
 	}
 
 	return messages, nil
+}
+
+func (c *C) PurgeQueue() (int, error) {
+	return c.channel.QueuePurge(c.queueName, false)
 }
 
 func (c *C) Close() error {

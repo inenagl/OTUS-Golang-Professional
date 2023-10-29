@@ -93,8 +93,8 @@ func TestMain(m *testing.M) {
 		os.Exit(2)
 	}
 	tm := time.NewTimer(10 * time.Second)
-	for res, err := testClient.Do(req); err != nil; {
-		res.Body.Close()
+	var res *http.Response
+	for res, err = testClient.Do(req); err != nil; {
 		select {
 		case <-tm.C:
 			break
@@ -104,6 +104,9 @@ func TestMain(m *testing.M) {
 	}
 	if err != nil {
 		os.Exit(3)
+	}
+	if err = res.Body.Close(); err != nil {
+		os.Exit(4)
 	}
 
 	m.Run()

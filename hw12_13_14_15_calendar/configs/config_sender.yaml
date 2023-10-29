@@ -22,3 +22,10 @@ amqphost: "localhost"     # need be set in env
 amqpport: 5672            # need be set in env
 amqpuser: "guest"         # need be set in env
 amqppassword: "guest"     # need be set in env
+
+producer:
+  exchangeName: "calendar-exchange"
+  routingKey: "sender-key"
+  exchangeType: "topic"   # "direct"|"fanout"|"topic"|"x-custom"
+  queueName: "sender-queue"
+  qosCount: 50

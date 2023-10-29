@@ -54,7 +54,19 @@ func main() {
 		config.Consumer.QosCount,
 	)
 
-	app := sender.New(config.Sender.Threads, logg, consumer)
+	producer := queue.NewProducer(
+		config.Producer.Host,
+		config.Producer.Port,
+		config.Producer.User,
+		config.Producer.Password,
+		config.Producer.ExchangeName,
+		config.Producer.ExchangeType,
+		config.Producer.RoutingKey,
+		config.Producer.QueueName,
+		config.Producer.QosCount,
+	)
+
+	app := sender.New(config.Sender.Threads, logg, consumer, producer)
 
 	ctx, cancel := signal.NotifyContext(
 		context.Background(),

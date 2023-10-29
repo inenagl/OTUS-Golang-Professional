@@ -2,6 +2,8 @@ BIN := "./bin/calendar"
 BIN_SCHEDULER := "./bin/calendar_scheduler"
 BIN_SENDER := "./bin/calendar_sender"
 DOCKER_IMG="calendar:develop"
+DOCKER_SCHEDULER_IMG="scheduler:develop"
+DOCKER_SENDER_IMG="sender:develop"
 
 GIT_HASH := $(shell git log --format="%h" -n 1)
 LDFLAGS := -X main.release="develop" -X main.buildDate=$(shell date -u +%Y-%m-%dT%H:%M:%S) -X main.gitHash=$(GIT_HASH)
@@ -36,10 +38,20 @@ build-img:
 	docker build \
 		--build-arg=LDFLAGS="$(LDFLAGS)" \
 		-t $(DOCKER_IMG) \
-		-f build/Dockerfile .
+		-f build/package/calendar/Dockerfile .
+	docker build \
+		--build-arg=LDFLAGS="$(LDFLAGS)" \
+		-t $(DOCKER_SCHEDULER_IMG) \
+		-f build/package/scheduler/Dockerfile .
+	docker build \
+		--build-arg=LDFLAGS="$(LDFLAGS)" \
+		-t $(DOCKER_SENDER_IMG) \
+		-f build/package/sender/Dockerfile .
 
 run-img: build-img
-	docker run $(DOCKER_IMG)
+	docker run -d $(DOCKER_IMG)
+	docker run -d $(DOCKER_SCHEDULER_IMG)
+	docker run -d $(DOCKER_SENDER_IMG)
 
 version: build
 	$(BIN) version
@@ -92,4 +104,26 @@ stop_db:
 	docker stop $(POSTGRES_NAME)
 	docker rm $(POSTGRES_NAME)
 
-.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate run_mq stop_mq run_db stop_db
+up:
+	docker compose -f deployments/docker-compose.yaml -p calendar up -d
+
+up-build:
+	docker compose -f deployments/docker-compose.yaml -p calendar up -d --build
+
+down:
+	docker compose -f deployments/docker-compose.yaml -p calendar down
+
+integration-tests-build:
+	docker compose -f deployments/docker-compose.test.yaml -p calendar-test build
+
+integration-tests-build_tests:
+	docker compose -f deployments/docker-compose.test.yaml -p calendar-test build tests
+
+integration-tests:
+	docker compose -f deployments/docker-compose.test.yaml -p calendar-test up --exit-code-from tests --attach tests && \
+	EXIT_CODE=$$? &&\
+	docker compose -f deployments/docker-compose.test.yaml -p calendar-test down && \
+    echo "command exited with $$EXIT_CODE" && \
+    exit $$EXIT_CODE
+
+.PHONY: build build_calendar build_scheduler build_sender run run_scheduler run_sender build-img run-img version test lint migrate generate run_mq stop_mq run_db stop_db up up-build down integration-tests-build integration-tests integration-tests-build_tests
